@@ -1,0 +1,34 @@
+name: Build OpenWrt 25.12.4 APK
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Build Package inside OpenWrt 25.12.4 SDK Container
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace openwrt/sdk:x86-64-25.12.4 /bin/bash -c "
+            mkdir -p package/luci-app-repomirror
+            cp -r Makefile htdocs po root package/luci-app-repomirror/
+            ./scripts/feeds update -a
+            ./scripts/feeds install -a
+            make package/luci-app-repomirror/compile V=s
+            mkdir -p /workspace/output
+            find bin/ -name 'luci-app-repomirror*.apk' -exec cp {} /workspace/output/ \;
+            find bin/ -name 'luci-i18n-repomirror*.apk' -exec cp {} /workspace/output/ \;
+          "
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: luci-app-repomirror-apk
+          path: output/*.apk
