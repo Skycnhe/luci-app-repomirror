@@ -1,0 +1,11 @@
+{
+	"luci-app-repomirror": {
+		"description": "Grant UCI access to repomirror configuration",
+		"read": {
+			"uci": [ "repomirror" ]
+		},
+		"write": {
+			"uci": [ "repomirror" ]
+		}
+	}
+}
