@@ -14,14 +14,33 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # 1. 解决宿主机与 Docker 容器低特权 build 用户的权限冲突问题
+      - name: Fix workspace permissions
+        run: |
+          chmod -R a+rwx ${{ github.workspace }}
+
+      # 2. 挂载工作区至 /workspace，但将工作目录 -w 设为容器默认的 /builder 目录
       - name: Build Package inside OpenWrt 25.12.4 SDK Container
         run: |
-          docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace openwrt/sdk:x86-64-25.12.4 /bin/bash -c "
+          docker run --rm -v ${{ github.workspace }}:/workspace -w /builder openwrt/sdk:x86-64-25.12.4 /bin/bash -c "
+            # 2.1 适配 24.10+ SDK 容器的初始化机制：若无 scripts，则先执行 setup.sh 下载完整环境
+            if [ ! -d ./scripts ]; then
+              echo 'Initializing OpenWrt SDK environment...'
+              ./setup.sh
+            fi
+            
+            # 2.2 在 SDK 内部建立包目录，并将挂载的插件源码复制进来参与编译
             mkdir -p package/luci-app-repomirror
-            cp -r Makefile htdocs po root package/luci-app-repomirror/
+            cp -r /workspace/Makefile /workspace/htdocs /workspace/po /workspace/root package/luci-app-repomirror/
+            
+            # 2.3 更新并安装 Feeds
             ./scripts/feeds update -a
             ./scripts/feeds install -a
+            
+            # 2.4 执行编译 (由全局 Buildroot 框架调用，此时 TOPDIR 会被正确填充)
             make package/luci-app-repomirror/compile V=s
+            
+            # 2.5 编译完成后，将生成的 APK 文件复制回挂载的 /workspace/output 目录
             mkdir -p /workspace/output
             find bin/ -name 'luci-app-repomirror*.apk' -exec cp {} /workspace/output/ \;
             find bin/ -name 'luci-i18n-repomirror*.apk' -exec cp {} /workspace/output/ \;
