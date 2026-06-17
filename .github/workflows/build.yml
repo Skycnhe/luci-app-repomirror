@@ -2,16 +2,14 @@ name: Build and Release OpenWrt 25.12.4 APK
 
 on:
   push:
-    branches: [ main, master ] # 普通推送触发编译
-    tags:
-      - "v*" # 推送 v* 标签触发 Release 发布
+    branches: [ "HK001", "main", "master" ] # 兼容并监听您的 HK001 分支推送
   workflow_dispatch: # 支持手动点击运行
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 必须配置写权限，以便自动创建 Release
+      contents: write # 必须配置写权限，以便自动创建/更新 Release
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -36,17 +34,14 @@ jobs:
             ./scripts/feeds update -a
             ./scripts/feeds install -p luci -a
             
-            # 2.4.5 【关键修正】在 .config 中强制启用我们的主包和中文语言包，防止编译被静默跳过
+            # 在 .config 中强制启用我们的主包和中文语言包
             echo \"CONFIG_PACKAGE_luci-app-repomirror=y\" >> .config
             echo \"CONFIG_PACKAGE_luci-i18n-repomirror-zh-cn=y\" >> .config
             
-            # 2.4.6 静默合并生成默认的 .config 配置文件
             make defconfig
-            
-            # 2.5 真正执行编译生成 .apk 产物
             make package/luci-app-repomirror/compile V=s
             
-            # 2.6 将生成的 APK 复制到挂载的输出目录
+            # 将生成的 APK 文件复制到挂载的输出目录
             mkdir -p /workspace/output
             find bin/ -name 'luci-app-repomirror*.apk' -exec cp {} /workspace/output/ \;
             find bin/ -name 'luci-i18n-repomirror*.apk' -exec cp {} /workspace/output/ \;
@@ -61,20 +56,20 @@ jobs:
             output/luci-app-repomirror*.apk
             output/luci-i18n-repomirror*.apk
 
-      # 4. 自动发布到 GitHub Releases (只有当您打 tag 并推送时才执行)
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+      # 4. 【无感自动滚动发布】每次编译成功，都会在主页自动创建或覆盖更新一个名为 "latest" 的 Release 区域
+      - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             output/luci-app-repomirror*.apk
             output/luci-i18n-repomirror*.apk
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
+          tag_name: latest
+          name: Latest Build (自动滚动发布)
           body: |
-            ### 自动编译发布 OpenWrt 25.12.4 APK 插件
+            ### 自动编译发布的 OpenWrt 25.12.4 APK 插件
             * 编译架构：x86-64 SDK（输出为 all 通用架构，支持在所有 CPU 上安装）
+            * 编译分支：`${{ github.ref_name }}`
             * 基础主包：`luci-app-repomirror`
             * 语言包：`luci-i18n-repomirror-zh-cn`
           draft: false
-          prerelease: false
+          prerelease: true # 标记为 Pre-release 滚动更新
