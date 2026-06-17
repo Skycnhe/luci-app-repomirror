@@ -1,0 +1,12 @@
+{
+	"admin/services/repomirror": {
+		"title": "Repo Mirror",
+		"action": {
+			"type": "view",
+			"path": "repomirror"
+		},
+		"depends": {
+			"acl": [ "luci-app-repomirror" ]
+		}
+	}
+}
