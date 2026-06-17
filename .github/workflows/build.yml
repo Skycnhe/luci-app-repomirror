@@ -1,53 +1,68 @@
-name: Build OpenWrt 25.12.4 APK
+name: Build and Release OpenWrt 25.12.4 APK
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-  workflow_dispatch:
+    tags:
+      - "v*" # 当您在本地推送形如 v1.0.0 的版本标签时，自动触发发布
+  workflow_dispatch: # 保留手动触发按钮
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # 必须赋予写权限，以便创建 Release 并上传文件
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 1. 解决宿主机与 Docker 容器低特权 build 用户的权限冲突问题
+      # 1. 放开宿主机工作区读写权限，解决容器低特权 build 用户的写入限制
       - name: Fix workspace permissions
         run: |
           chmod -R a+rwx ${{ github.workspace }}
 
-      # 2. 挂载工作区至 /workspace，但将工作目录 -w 设为容器默认的 /builder 目录
+      # 2. 挂载工作区并进行编译
       - name: Build Package inside OpenWrt 25.12.4 SDK Container
         run: |
           docker run --rm -v ${{ github.workspace }}:/workspace -w /builder openwrt/sdk:x86-64-25.12.4 /bin/bash -c "
-            # 2.1 适配 24.10+ SDK 容器的初始化机制：若无 scripts，则先执行 setup.sh 下载完整环境
+            # 2.1 初始化 SDK 环境
             if [ ! -d ./scripts ]; then
               echo 'Initializing OpenWrt SDK environment...'
               ./setup.sh
             fi
             
-            # 2.2 在 SDK 内部建立包目录，并将挂载的插件源码复制进来参与编译
+            # 2.2 复制项目源码到 SDK 的编译目录中
             mkdir -p package/luci-app-repomirror
             cp -r /workspace/Makefile /workspace/htdocs /workspace/po /workspace/root package/luci-app-repomirror/
             
-            # 2.3 更新并安装 Feeds
+            # 2.3 更新所有源
             ./scripts/feeds update -a
-            ./scripts/feeds install -a
             
-            # 2.4 执行编译 (由全局 Buildroot 框架调用，此时 TOPDIR 会被正确填充)
+            # 2.4 【关键修复】仅安装 luci 订阅源，完全避开包含循环依赖 Bug 的 packages 订阅源
+            ./scripts/feeds install -p luci -a
+            
+            # 2.5 执行编译
             make package/luci-app-repomirror/compile V=s
             
-            # 2.5 编译完成后，将生成的 APK 文件复制回挂载的 /workspace/output 目录
+            # 2.6 编译完成后，将生成的 APK 复制到挂载的输出目录
             mkdir -p /workspace/output
             find bin/ -name 'luci-app-repomirror*.apk' -exec cp {} /workspace/output/ \;
             find bin/ -name 'luci-i18n-repomirror*.apk' -exec cp {} /workspace/output/ \;
           "
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      # 3. 自动发布到 GitHub Releases (只有打 tag 推送时才会运行此步)
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
         with:
-          name: luci-app-repomirror-apk
-          path: output/*.apk
+          files: |
+            output/luci-app-repomirror*.apk
+            output/luci-i18n-repomirror*.apk
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: |
+            ### 自动编译发布 OpenWrt 25.12.4 APK 插件
+            * 编译架构：x86-64 SDK（输出为 all 通用架构包，支持在所有 CPU 上安装）
+            * 基础主包：`luci-app-repomirror`
+            * 语言包：`luci-i18n-repomirror-zh-cn`
+          draft: false
+          prerelease: false
