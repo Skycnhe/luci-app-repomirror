@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 必须赋予写权限，以便创建 Release 并上传文件
+      contents: write # 必须赋予写权限，以便自动创建 Release 并上传文件
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -24,7 +24,7 @@ jobs:
       - name: Build Package inside OpenWrt 25.12.4 SDK Container
         run: |
           docker run --rm -v ${{ github.workspace }}:/workspace -w /builder openwrt/sdk:x86-64-25.12.4 /bin/bash -c "
-            # 2.1 初始化 SDK 环境
+            # 2.1 初始化 SDK 环境 (24.10+ SDK 容器运行必需步骤)
             if [ ! -d ./scripts ]; then
               echo 'Initializing OpenWrt SDK environment...'
               ./setup.sh
@@ -37,8 +37,11 @@ jobs:
             # 2.3 更新所有源
             ./scripts/feeds update -a
             
-            # 2.4 【关键修复】仅安装 luci 订阅源，完全避开包含循环依赖 Bug 的 packages 订阅源
+            # 2.4 仅安装 luci 订阅源，完全避开包含循环依赖 Bug 的 packages 订阅源
             ./scripts/feeds install -p luci -a
+            
+            # 2.4.5 【关键修正】静默合并生成默认的 .config 配置文件，避免触发交互式的 menuconfig 终端报错
+            make defconfig
             
             # 2.5 执行编译
             make package/luci-app-repomirror/compile V=s
