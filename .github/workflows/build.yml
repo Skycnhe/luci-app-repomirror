@@ -11,7 +11,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 赋予写权限，以便自动创建 Release
+      contents: write # 必须配置写权限，以便自动创建 Release
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -36,17 +36,23 @@ jobs:
             ./scripts/feeds update -a
             ./scripts/feeds install -p luci -a
             
+            # 2.4.5 【关键修正】在 .config 中强制启用我们的主包和中文语言包，防止编译被静默跳过
+            echo \"CONFIG_PACKAGE_luci-app-repomirror=y\" >> .config
+            echo \"CONFIG_PACKAGE_luci-i18n-repomirror-zh-cn=y\" >> .config
+            
+            # 2.4.6 静默合并生成默认的 .config 配置文件
             make defconfig
+            
+            # 2.5 真正执行编译生成 .apk 产物
             make package/luci-app-repomirror/compile V=s
             
-            # 将生成的 APK 文件复制到挂载的输出目录
+            # 2.6 将生成的 APK 复制到挂载的输出目录
             mkdir -p /workspace/output
             find bin/ -name 'luci-app-repomirror*.apk' -exec cp {} /workspace/output/ \;
             find bin/ -name 'luci-i18n-repomirror*.apk' -exec cp {} /workspace/output/ \;
           "
 
-      # 3. 【无缝兼容】将编译好的 APK 自动上传至 Actions 运行页面的 Artifacts 区域
-      # 这样无论任何触发方式，只要编译成功，您都可以在 Actions 的 Summary 界面中直接下载 APK 压缩包
+      # 3. 将编译好的 APK 自动上传至 Actions 运行页面的 Artifacts 区域（普通 push、手动运行可用）
       - name: Upload APK to Actions Artifacts
         uses: actions/upload-artifact@v4
         with:
