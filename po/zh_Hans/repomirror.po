@@ -1,0 +1,29 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Repo Mirror Switcher"
+msgstr "软件源镜像切换器"
+
+msgid "Modify /etc/apk/repositories.d/distfeeds.list to switch to Chinese mirror sources."
+msgstr "修改 /etc/apk/repositories.d/distfeeds.list 以快速切换至国内软件源镜像站。"
+
+msgid "Settings"
+msgstr "设置"
+
+msgid "Enable"
+msgstr "启用"
+
+msgid "Select Mirror"
+msgstr "选择镜像源"
+
+msgid "Tsinghua University (TUNA)"
+msgstr "清华大学开源软件镜像站"
+
+msgid "USTC"
+msgstr "中国科学技术大学开源镜像站"
+
+msgid "AliCloud"
+msgstr "阿里云开源镜像"
+
+msgid "Tencent Cloud"
+msgstr "腾讯云开源镜像"
